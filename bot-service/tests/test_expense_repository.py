@@ -48,13 +48,11 @@ class FakeSessionFactory:
 
 def _build_expense() -> ExpenseToSave:
     return ExpenseToSave(
-        telegram_user_id=123,
+        user_id=42,
         description="Pizza",
         amount=Decimal("20.00"),
         category="Food",
-        source_chat_id=987,
-        source_message_id=456,
-        source_timestamp=datetime(2026, 4, 22, 20, 0, tzinfo=timezone.utc),
+        added_at=datetime(2026, 4, 22, 20, 0, tzinfo=timezone.utc),
     )
 
 
@@ -69,9 +67,12 @@ def test_save_expense_returns_true_when_row_is_inserted() -> None:
         assert session_factory.last_session is not None
         assert session_factory.last_session.committed is True
         assert session_factory.last_session.executed_parameters is not None
-        assert (
-            session_factory.last_session.executed_parameters["telegram_user_id"] == 123
-        )
+        params = session_factory.last_session.executed_parameters
+        assert params["user_id"] == 42
+        assert params["description"] == "Pizza"
+        assert params["amount"] == Decimal("20.00")
+        assert params["category"] == "Food"
+        assert params["added_at"] == datetime(2026, 4, 22, 20, 0, tzinfo=timezone.utc)
 
     asyncio.run(run())
 

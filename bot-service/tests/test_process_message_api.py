@@ -1,29 +1,31 @@
-from collections.abc import Iterable
+from collections.abc import Mapping
 from decimal import Decimal
+
+from fastapi.testclient import TestClient
 
 from app.application.process_message import (
     ExpenseExtractor,
     ExpenseRepository,
     ProcessMessageUseCase,
-    WhitelistRepository,
+    UsersRepository,
 )
 from app.domain.expense import ExpenseToSave, ParsedExpense
-from fastapi.testclient import TestClient
-
 from app.main import create_app
 
 
-class InMemoryWhitelistRepository(WhitelistRepository):
-    def __init__(self, allowed_ids: Iterable[str]) -> None:
-        self._allowed_ids = set(allowed_ids)
+class InMemoryUsersRepository(UsersRepository):
+    """`telegram_id -> users.id` mapping (the whitelist for tests)."""
 
-    async def is_whitelisted(self, telegram_user_id: str) -> bool:
-        return telegram_user_id in self._allowed_ids
+    def __init__(self, ids_by_telegram_id: Mapping[str, int]) -> None:
+        self._ids_by_telegram_id = dict(ids_by_telegram_id)
+
+    async def find_id_by_telegram_id(self, telegram_id: str) -> int | None:
+        return self._ids_by_telegram_id.get(telegram_id)
 
 
 class InMemoryExpenseExtractor(ExpenseExtractor):
-    def __init__(self, results_by_message: dict[str, ParsedExpense | None]) -> None:
-        self._results_by_message = results_by_message
+    def __init__(self, results_by_message: Mapping[str, ParsedExpense | None]) -> None:
+        self._results_by_message = dict(results_by_message)
 
     async def extract(self, message_text: str) -> ParsedExpense | None:
         return self._results_by_message.get(message_text)
@@ -45,14 +47,14 @@ class InMemoryExpenseRepository(ExpenseRepository):
 
 
 def create_test_client(
-    allowed_ids: Iterable[str],
-    results_by_message: dict[str, ParsedExpense | None] | None,
+    ids_by_telegram_id: Mapping[str, int],
+    results_by_message: Mapping[str, ParsedExpense | None] | None,
     expense_repository: ExpenseRepository,
     expense_extractor: ExpenseExtractor | None = None,
 ) -> TestClient:
     use_case = ProcessMessageUseCase(
         expense_extractor=expense_extractor or InMemoryExpenseExtractor(results_by_message or {}),
-        whitelist_repository=InMemoryWhitelistRepository(allowed_ids),
+        users_repository=InMemoryUsersRepository(ids_by_telegram_id),
         expense_repository=expense_repository,
     )
     app = create_app(process_message_use_case=use_case)
@@ -60,8 +62,9 @@ def create_test_client(
 
 
 def test_process_message_returns_reply_for_basic_expense() -> None:
+    repository = InMemoryExpenseRepository(save_result=True)
     client = create_test_client(
-        allowed_ids={"123"},
+        ids_by_telegram_id={"123": 42},
         results_by_message={
             "Pizza 20 bucks": ParsedExpense(
                 description="Pizza",
@@ -69,7 +72,7 @@ def test_process_message_returns_reply_for_basic_expense() -> None:
                 category="Food",
             )
         },
-        expense_repository=InMemoryExpenseRepository(save_result=True),
+        expense_repository=repository,
     )
 
     response = client.post(
@@ -88,11 +91,17 @@ def test_process_message_returns_reply_for_basic_expense() -> None:
         "should_reply": True,
         "reply_text": "[Food] expense added \u2705",
     }
+    assert len(repository.saved_expenses) == 1
+    saved = repository.saved_expenses[0]
+    assert saved.user_id == 42
+    assert saved.description == "Pizza"
+    assert saved.amount == Decimal("20")
+    assert saved.category == "Food"
 
 
 def test_process_message_ignores_non_expense_message() -> None:
     client = create_test_client(
-        allowed_ids={"123"},
+        ids_by_telegram_id={"123": 42},
         results_by_message={"Good morning team": None},
         expense_repository=InMemoryExpenseRepository(save_result=True),
     )
@@ -109,15 +118,12 @@ def test_process_message_ignores_non_expense_message() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "should_reply": False,
-        "reply_text": None,
-    }
+    assert response.json() == {"should_reply": False, "reply_text": None}
 
 
 def test_process_message_ignores_non_whitelisted_user() -> None:
     client = create_test_client(
-        allowed_ids={"999"},
+        ids_by_telegram_id={"999": 1},
         results_by_message={
             "Pizza 20 bucks": ParsedExpense(
                 description="Pizza",
@@ -140,15 +146,12 @@ def test_process_message_ignores_non_whitelisted_user() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "should_reply": False,
-        "reply_text": None,
-    }
+    assert response.json() == {"should_reply": False, "reply_text": None}
 
 
 def test_process_message_returns_no_reply_when_expense_is_not_persisted() -> None:
     client = create_test_client(
-        allowed_ids={"123"},
+        ids_by_telegram_id={"123": 42},
         results_by_message={
             "Pizza 20 bucks": ParsedExpense(
                 description="Pizza",
@@ -171,15 +174,12 @@ def test_process_message_returns_no_reply_when_expense_is_not_persisted() -> Non
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "should_reply": False,
-        "reply_text": None,
-    }
+    assert response.json() == {"should_reply": False, "reply_text": None}
 
 
 def test_process_message_returns_500_when_unhandled_error_occurs() -> None:
     client = create_test_client(
-        allowed_ids={"123"},
+        ids_by_telegram_id={"123": 42},
         results_by_message=None,
         expense_repository=InMemoryExpenseRepository(save_result=True),
         expense_extractor=FailingExpenseExtractor(),
