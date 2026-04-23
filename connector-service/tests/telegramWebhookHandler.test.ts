@@ -6,12 +6,12 @@ import { createTelegramWebhookHandler } from "../src/interface/http/telegramWebh
 function createMockResponse() {
   return {
     statusCode: 200,
-    body: null,
-    status(code) {
+    body: null as unknown,
+    status(code: number) {
       this.statusCode = code;
       return this;
     },
-    json(payload) {
+    json(payload: unknown) {
       this.body = payload;
       return this;
     },
@@ -32,7 +32,7 @@ test("rejects webhook request when Telegram secret is invalid", async () => {
   };
   const res = createMockResponse();
 
-  await handler(req, res);
+  await handler(req as never, res as never, (() => {}) as never);
 
   assert.equal(res.statusCode, 401);
   assert.deepEqual(res.body, { error: "unauthorized" });
@@ -54,7 +54,7 @@ test("accepts webhook request and processes update with valid secret", async () 
   };
   const res = createMockResponse();
 
-  await handler(req, res);
+  await handler(req as never, res as never, (() => {}) as never);
 
   assert.equal(processed, true);
   assert.equal(res.statusCode, 200);

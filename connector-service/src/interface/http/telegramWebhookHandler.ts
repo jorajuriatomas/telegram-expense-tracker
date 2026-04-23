@@ -1,6 +1,15 @@
+import type { RequestHandler } from "express";
+import type { TelegramUpdate } from "../../application/processTelegramUpdate.js";
+
 const TELEGRAM_SECRET_HEADER = "x-telegram-bot-api-secret-token";
 
-export function createTelegramWebhookHandler({ processTelegramUpdate, webhookSecret }) {
+export function createTelegramWebhookHandler({
+  processTelegramUpdate,
+  webhookSecret,
+}: {
+  processTelegramUpdate: (update: TelegramUpdate) => Promise<unknown>;
+  webhookSecret: string;
+}): RequestHandler {
   return async function telegramWebhookHandler(req, res) {
     const incomingSecret = req.get(TELEGRAM_SECRET_HEADER);
     if (incomingSecret !== webhookSecret) {
@@ -8,7 +17,7 @@ export function createTelegramWebhookHandler({ processTelegramUpdate, webhookSec
     }
 
     try {
-      await processTelegramUpdate(req.body);
+      await processTelegramUpdate(req.body as TelegramUpdate);
       return res.status(200).json({ status: "ok" });
     } catch (error) {
       console.error("Failed to process Telegram update", error);

@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-function requireEnv(name) {
+function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value || value.trim() === "") {
     throw new Error(`Missing required environment variable: ${name}`);
@@ -10,7 +10,18 @@ function requireEnv(name) {
   return value;
 }
 
-export const env = {
+type Env = {
+  nodeEnv: string;
+  port: number;
+  telegramBotToken: string;
+  telegramWebhookSecret: string;
+  telegramWebhookPath: string;
+  telegramApiBaseUrl: string;
+  botServiceBaseUrl: string;
+  botServiceProcessMessagePath: string;
+};
+
+export const env: Env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number.parseInt(requireEnv("PORT"), 10),
   telegramBotToken: requireEnv("TELEGRAM_BOT_TOKEN"),
@@ -35,7 +46,7 @@ if (!env.botServiceProcessMessagePath.startsWith("/")) {
   );
 }
 
-function validateUrl(name, value) {
+function validateUrl(name: string, value: string): void {
   try {
     const url = new URL(value);
     if (!["http:", "https:"].includes(url.protocol)) {

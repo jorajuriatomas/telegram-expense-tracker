@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.application.basic_expense_parser import BasicExpenseParser
+from app.domain.expense import ExpenseToSave, ParsedExpense
 from app.interface.http.schemas import ProcessMessageRequest, ProcessMessageResponse
 
 
@@ -9,14 +9,26 @@ class WhitelistRepository(Protocol):
         ...
 
 
+class ExpenseExtractor(Protocol):
+    async def extract(self, message_text: str) -> ParsedExpense | None:
+        ...
+
+
+class ExpenseRepository(Protocol):
+    async def save_expense(self, expense: ExpenseToSave) -> bool:
+        ...
+
+
 class ProcessMessageUseCase:
     def __init__(
         self,
-        parser: BasicExpenseParser,
+        expense_extractor: ExpenseExtractor,
         whitelist_repository: WhitelistRepository,
+        expense_repository: ExpenseRepository,
     ) -> None:
-        self._parser = parser
+        self._expense_extractor = expense_extractor
         self._whitelist_repository = whitelist_repository
+        self._expense_repository = expense_repository
 
     async def execute(self, request: ProcessMessageRequest) -> ProcessMessageResponse:
         is_whitelisted = await self._whitelist_repository.is_whitelisted(
@@ -25,11 +37,41 @@ class ProcessMessageUseCase:
         if not is_whitelisted:
             return ProcessMessageResponse(should_reply=False, reply_text=None)
 
-        parsed_expense = self._parser.parse(request.message_text)
+        parsed_expense = await self._expense_extractor.extract(request.message_text)
         if parsed_expense is None:
+            return ProcessMessageResponse(should_reply=False, reply_text=None)
+
+        expense_to_save = _build_expense_to_save(request, parsed_expense)
+        if expense_to_save is None:
+            return ProcessMessageResponse(should_reply=False, reply_text=None)
+
+        was_saved = await self._expense_repository.save_expense(expense_to_save)
+        if not was_saved:
             return ProcessMessageResponse(should_reply=False, reply_text=None)
 
         return ProcessMessageResponse(
             should_reply=True,
             reply_text=f"[{parsed_expense.category}] expense added \u2705",
         )
+
+
+def _build_expense_to_save(
+    request: ProcessMessageRequest,
+    parsed_expense: ParsedExpense,
+) -> ExpenseToSave | None:
+    try:
+        telegram_user_id = int(request.telegram_user_id)
+        source_chat_id = int(request.chat_id)
+        source_message_id = int(request.message_id)
+    except ValueError:
+        return None
+
+    return ExpenseToSave(
+        telegram_user_id=telegram_user_id,
+        description=parsed_expense.description,
+        amount=parsed_expense.amount,
+        category=parsed_expense.category,
+        source_chat_id=source_chat_id,
+        source_message_id=source_message_id,
+        source_timestamp=request.timestamp,
+    )

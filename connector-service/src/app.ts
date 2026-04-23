@@ -1,6 +1,12 @@
 import express from "express";
+import type { RequestHandler } from "express";
 
-export function createApp({ telegramWebhookPath, telegramWebhookHandler }) {
+type CreateAppOptions = {
+  telegramWebhookPath: string;
+  telegramWebhookHandler: RequestHandler;
+};
+
+export function createApp({ telegramWebhookPath, telegramWebhookHandler }: CreateAppOptions) {
   const app = express();
 
   app.use(express.json());
