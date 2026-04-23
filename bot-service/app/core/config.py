@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     llm_provider: str = Field(alias="LLM_PROVIDER")
     llm_model_name: str = Field(alias="LLM_MODEL_NAME")
     llm_api_key: str = Field(alias="LLM_API_KEY")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     model_config = SettingsConfigDict(
         env_file=".env",

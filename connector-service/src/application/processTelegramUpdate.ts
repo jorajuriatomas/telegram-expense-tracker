@@ -43,6 +43,8 @@ type ProcessTelegramUpdateOptions = {
   };
 };
 
+export type ProcessTelegramUpdateResult = "ignored" | "replied" | "processed_no_reply";
+
 function isTextMessage(
   update: TelegramUpdate,
 ): update is TelegramUpdate & {
@@ -80,9 +82,9 @@ export function createProcessTelegramUpdate({
 }: ProcessTelegramUpdateOptions) {
   return async function processTelegramUpdate(
     update: TelegramUpdate,
-  ): Promise<{ status: "ignored" | "replied" | "processed_no_reply" }> {
+  ): Promise<ProcessTelegramUpdateResult> {
     if (!isTextMessage(update)) {
-      return { status: "ignored" };
+      return "ignored";
     }
 
     const normalizedMessage = normalizeMessage(update.message);
@@ -94,9 +96,9 @@ export function createProcessTelegramUpdate({
         text: botResponse.reply_text,
         replyToMessageId: normalizedMessage.message_id,
       });
-      return { status: "replied" };
+      return "replied";
     }
 
-    return { status: "processed_no_reply" };
+    return "processed_no_reply";
   };
 }

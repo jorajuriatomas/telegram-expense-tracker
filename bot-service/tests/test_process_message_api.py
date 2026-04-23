@@ -29,6 +29,11 @@ class InMemoryExpenseExtractor(ExpenseExtractor):
         return self._results_by_message.get(message_text)
 
 
+class FailingExpenseExtractor(ExpenseExtractor):
+    async def extract(self, message_text: str) -> ParsedExpense | None:
+        raise RuntimeError(f"forced extractor error for: {message_text}")
+
+
 class InMemoryExpenseRepository(ExpenseRepository):
     def __init__(self, save_result: bool) -> None:
         self._save_result = save_result
@@ -41,11 +46,12 @@ class InMemoryExpenseRepository(ExpenseRepository):
 
 def create_test_client(
     allowed_ids: Iterable[str],
-    results_by_message: dict[str, ParsedExpense | None],
+    results_by_message: dict[str, ParsedExpense | None] | None,
     expense_repository: ExpenseRepository,
+    expense_extractor: ExpenseExtractor | None = None,
 ) -> TestClient:
     use_case = ProcessMessageUseCase(
-        expense_extractor=InMemoryExpenseExtractor(results_by_message),
+        expense_extractor=expense_extractor or InMemoryExpenseExtractor(results_by_message or {}),
         whitelist_repository=InMemoryWhitelistRepository(allowed_ids),
         expense_repository=expense_repository,
     )
@@ -169,3 +175,26 @@ def test_process_message_returns_no_reply_when_expense_is_not_persisted() -> Non
         "should_reply": False,
         "reply_text": None,
     }
+
+
+def test_process_message_returns_500_when_unhandled_error_occurs() -> None:
+    client = create_test_client(
+        allowed_ids={"123"},
+        results_by_message=None,
+        expense_repository=InMemoryExpenseRepository(save_result=True),
+        expense_extractor=FailingExpenseExtractor(),
+    )
+
+    response = client.post(
+        "/process-message",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_text": "Pizza 20 bucks",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "internal_error"}

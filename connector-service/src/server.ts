@@ -4,6 +4,7 @@ import { env } from "./config/env.js";
 import { BotServiceClient } from "./infrastructure/bot/botServiceClient.js";
 import { TelegramClient } from "./infrastructure/telegram/telegramClient.js";
 import { createTelegramWebhookHandler } from "./interface/http/telegramWebhookHandler.js";
+import { logInfo } from "./logger.js";
 
 const botServiceClient = new BotServiceClient({
   baseUrl: env.botServiceBaseUrl,
@@ -31,5 +32,9 @@ const app = createApp({
 });
 
 app.listen(env.port, () => {
-  console.log(`connector-service listening on port ${env.port}`);
+  logInfo("connector-service listening", {
+    port: env.port,
+    webhookPath: env.telegramWebhookPath,
+    nodeEnv: env.nodeEnv,
+  });
 });

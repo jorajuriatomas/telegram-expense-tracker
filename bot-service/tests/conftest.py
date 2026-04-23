@@ -12,6 +12,7 @@ _ENV_KEYS = (
     "LLM_PROVIDER",
     "LLM_MODEL_NAME",
     "LLM_API_KEY",
+    "LOG_LEVEL",
 )
 
 _ENV_DEFAULTS = {
@@ -21,6 +22,7 @@ _ENV_DEFAULTS = {
     "LLM_PROVIDER": "openai",
     "LLM_MODEL_NAME": "gpt-4o-mini",
     "LLM_API_KEY": "test-key",
+    "LOG_LEVEL": "INFO",
 }
 
 for key, value in _ENV_DEFAULTS.items():

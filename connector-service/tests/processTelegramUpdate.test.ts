@@ -43,7 +43,7 @@ test("ignores updates without text message", async () => {
 
   const result = await processTelegramUpdate({ message: { photo: [{ file_id: "1" }] } });
 
-  assert.equal(result.status, "ignored");
+  assert.equal(result, "ignored");
   assert.equal(botCalled, false);
   assert.equal(telegramCalled, false);
 });
@@ -71,7 +71,7 @@ test("forwards normalized message to bot service and sends Telegram reply", asyn
 
   const result = await processTelegramUpdate(buildUpdate());
 
-  assert.equal(result.status, "replied");
+  assert.equal(result, "replied");
   assert.equal(botPayloads.length, 1);
   assert.deepEqual(botPayloads[0], {
     telegram_user_id: "12345",
@@ -109,6 +109,6 @@ test("does not send Telegram reply when bot says should_reply=false", async () =
 
   const result = await processTelegramUpdate(buildUpdate());
 
-  assert.equal(result.status, "processed_no_reply");
+  assert.equal(result, "processed_no_reply");
   assert.equal(telegramCalled, false);
 });

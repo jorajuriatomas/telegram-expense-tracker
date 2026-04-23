@@ -38,7 +38,8 @@ export class BotServiceClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Bot Service returned status ${response.status}`);
+      const errorBody = await response.text();
+      throw new Error(`Bot Service returned status ${response.status}: ${errorBody}`);
     }
 
     return (await response.json()) as ProcessMessageResponse;
