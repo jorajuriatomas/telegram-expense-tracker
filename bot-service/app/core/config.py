@@ -1,0 +1,20 @@
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    bot_service_host: str = Field(alias="BOT_SERVICE_HOST")
+    bot_service_port: int = Field(alias="BOT_SERVICE_PORT")
+    database_url: str = Field(alias="DATABASE_URL")
+    llm_provider: str = Field(alias="LLM_PROVIDER")
+    llm_model_name: str = Field(alias="LLM_MODEL_NAME")
+    llm_api_key: str = Field(alias="LLM_API_KEY")
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+settings = Settings()
