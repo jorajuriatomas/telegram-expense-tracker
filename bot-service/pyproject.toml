@@ -5,8 +5,28 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bot-service"
 version = "0.1.0"
-description = "Expense bot service"
+description = "Expense bot service (LangChain + FastAPI + asyncpg)"
 requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.115.0",
+    "uvicorn[standard]==0.30.6",
+    "pydantic-settings==2.6.0",
+    "sqlalchemy==2.0.36",
+    "asyncpg==0.30.0",
+    "langchain==0.3.7",
+    "langchain-openai==0.2.14",
+    "langchain-google-genai==2.0.7",
+    "langchain-groq==0.2.2",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

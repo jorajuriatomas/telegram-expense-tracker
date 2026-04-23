@@ -4,4 +4,7 @@ pydantic-settings==2.6.0
 sqlalchemy==2.0.36
 asyncpg==0.30.0
 langchain==0.3.7
+# LLM provider adapters. Add more here to enable swapping via LLM_PROVIDER.
 langchain-openai==0.2.14
+langchain-google-genai==2.0.7
+langchain-groq==0.2.2

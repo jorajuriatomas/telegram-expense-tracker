@@ -1,3 +1,17 @@
+"""LangChain-based expense extractor.
+
+Provider-agnostic: the concrete LLM is selected by `LLM_PROVIDER`
+(`openai`, `google_genai`, etc.) and resolved through LangChain's
+`init_chat_model`. The same code path works for any provider that
+LangChain supports — that's the point of this layer.
+
+Auth keys are passed to providers via their well-known environment
+variables (e.g. `OPENAI_API_KEY`, `GOOGLE_API_KEY`) instead of as
+constructor kwargs, because each LangChain integration uses a
+different kwarg name. Mapping happens in `_apply_provider_api_key`.
+"""
+
+import os
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
@@ -7,6 +21,26 @@ from pydantic import BaseModel, Field
 
 from app.domain.categories import EXPENSE_CATEGORIES, EXPENSE_CATEGORIES_SET
 from app.domain.expense import ParsedExpense
+
+# Maps the value of LLM_PROVIDER to the env var that the corresponding
+# LangChain provider package reads to pick up its API key.
+_PROVIDER_API_KEY_ENV_VARS: dict[str, str] = {
+    "openai": "OPENAI_API_KEY",
+    "google_genai": "GOOGLE_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "mistralai": "MISTRAL_API_KEY",
+    "together": "TOGETHER_API_KEY",
+    "fireworks": "FIREWORKS_API_KEY",
+    # Local-only providers (no API key required) intentionally omitted:
+    # ollama, llama_cpp.
+}
+
+
+def _apply_provider_api_key(llm_provider: str, llm_api_key: str) -> None:
+    env_var = _PROVIDER_API_KEY_ENV_VARS.get(llm_provider)
+    if env_var and llm_api_key:
+        os.environ[env_var] = llm_api_key
 
 
 class _ExpenseExtractionOutput(BaseModel):
@@ -60,8 +94,11 @@ class LangChainExpenseExtractor:
         chain: _AsyncChain | None = None,
     ) -> None:
         if chain is not None:
+            # Test seam: callers can inject a stub chain, skipping LLM init entirely.
             self._chain = chain
             return
+
+        _apply_provider_api_key(llm_provider, llm_api_key)
 
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -81,7 +118,6 @@ class LangChainExpenseExtractor:
         chat_model = init_chat_model(
             model=llm_model_name,
             model_provider=llm_provider,
-            api_key=llm_api_key,
             temperature=0,
         )
         self._chain = prompt | chat_model.with_structured_output(_ExpenseExtractionOutput)
