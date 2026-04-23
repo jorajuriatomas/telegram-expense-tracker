@@ -1,3 +1,11 @@
+"""FastAPI app factory for the Bot Service.
+
+This module intentionally does NOT instantiate the app at import time so that
+tests can import `create_app` without triggering side-effects (LLM client
+initialization, settings parsing, etc.). The runtime ASGI entrypoint lives
+in `app.asgi` and is referenced by uvicorn / Docker.
+"""
+
 import logging
 
 from fastapi import FastAPI, HTTPException
@@ -8,23 +16,28 @@ from app.core.logging import configure_logging
 from app.infrastructure.llm.langchain_expense_extractor import LangChainExpenseExtractor
 from app.infrastructure.postgres.connection import get_session_factory
 from app.infrastructure.postgres.expense_repository import PostgresExpenseRepository
-from app.infrastructure.postgres.whitelist_repository import PostgresWhitelistRepository
+from app.infrastructure.postgres.users_repository import PostgresUsersRepository
 from app.interface.http.schemas import ProcessMessageRequest, ProcessMessageResponse
 
 logger = logging.getLogger(__name__)
 
 
 def create_app(process_message_use_case: ProcessMessageUseCase | None = None) -> FastAPI:
+    """Build a FastAPI app.
+
+    Pass `process_message_use_case` from tests to inject in-memory fakes.
+    When omitted, the production wiring is built from env-driven settings
+    and a single shared async session factory.
+    """
+
     app = FastAPI(title="bot-service", version="0.1.0")
+
     if process_message_use_case is None:
         settings = get_settings()
         configure_logging(settings.log_level)
-        whitelist_repository = PostgresWhitelistRepository(
-            session_factory=get_session_factory(),
-        )
-        expense_repository = PostgresExpenseRepository(
-            session_factory=get_session_factory(),
-        )
+        session_factory = get_session_factory()
+        users_repository = PostgresUsersRepository(session_factory=session_factory)
+        expense_repository = PostgresExpenseRepository(session_factory=session_factory)
         expense_extractor = LangChainExpenseExtractor(
             llm_provider=settings.llm_provider,
             llm_model_name=settings.llm_model_name,
@@ -32,18 +45,14 @@ def create_app(process_message_use_case: ProcessMessageUseCase | None = None) ->
         )
         process_message_use_case = ProcessMessageUseCase(
             expense_extractor=expense_extractor,
-            whitelist_repository=whitelist_repository,
+            users_repository=users_repository,
             expense_repository=expense_repository,
         )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
-        settings = get_settings()
-        return {
-            "status": "ok",
-            "service": "bot-service",
-            "model": settings.llm_model_name,
-        }
+        # Liveness only. Internals (model name, db url) intentionally not exposed.
+        return {"status": "ok", "service": "bot-service"}
 
     @app.post("/process-message", response_model=ProcessMessageResponse)
     async def process_message(
@@ -59,6 +68,3 @@ def create_app(process_message_use_case: ProcessMessageUseCase | None = None) ->
             raise HTTPException(status_code=500, detail="internal_error") from error
 
     return app
-
-
-app = create_app()
