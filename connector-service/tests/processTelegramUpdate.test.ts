@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createProcessTelegramUpdate } from "../src/application/processTelegramUpdate.js";
-import type { ProcessMessagePayload } from "../src/infrastructure/bot/botServiceClient.js";
+import type { ProcessMessageRequest } from "../src/contracts/botService.js";
 
 type TelegramSendPayload = {
   chatId: string;
@@ -49,12 +49,12 @@ test("ignores updates without text message", async () => {
 });
 
 test("forwards normalized message to bot service and sends Telegram reply", async () => {
-  const botPayloads: ProcessMessagePayload[] = [];
+  const botPayloads: ProcessMessageRequest[] = [];
   const telegramPayloads: TelegramSendPayload[] = [];
 
   const processTelegramUpdate = createProcessTelegramUpdate({
     botServiceClient: {
-      async processMessage(payload: ProcessMessagePayload) {
+      async processMessage(payload: ProcessMessageRequest) {
         botPayloads.push(payload);
         return {
           should_reply: true,
