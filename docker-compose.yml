@@ -1,0 +1,80 @@
+# Single-command bring-up for the full stack (Postgres + Bot Service + Connector).
+# Usage:
+#   1. cp .env.example .env  (and edit values)
+#   2. docker compose up --build
+#
+# All configuration is sourced from the top-level .env file. No service-level
+# .env files are read inside the containers — env precedence is documented in
+# the project README.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: expense-bot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Consumed by infra/postgres/init/002_seed.sh on first init.
+      # Comma-separated list (or single id). Empty = no seed.
+      INITIAL_TELEGRAM_IDS: ${INITIAL_TELEGRAM_IDS:-}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bot-service:
+    build:
+      context: ./bot-service
+    container_name: expense-bot-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      BOT_SERVICE_HOST: 0.0.0.0
+      BOT_SERVICE_PORT: ${BOT_SERVICE_PORT}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LOG_LEVEL: ${LOG_LEVEL}
+    ports:
+      - "${BOT_SERVICE_PORT}:${BOT_SERVICE_PORT}"
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(f'http://localhost:${BOT_SERVICE_PORT}/health').status==200 else 1)\""
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  connector-service:
+    build:
+      context: ./connector-service
+    container_name: expense-bot-connector
+    restart: unless-stopped
+    depends_on:
+      bot-service:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: ${CONNECTOR_PORT}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
+      TELEGRAM_WEBHOOK_PATH: ${TELEGRAM_WEBHOOK_PATH}
+      TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL}
+      BOT_SERVICE_BASE_URL: http://bot-service:${BOT_SERVICE_PORT}
+      BOT_SERVICE_PROCESS_MESSAGE_PATH: ${BOT_SERVICE_PROCESS_MESSAGE_PATH}
+    ports:
+      - "${CONNECTOR_PORT}:${CONNECTOR_PORT}"
+
+volumes:
+  postgres_data:

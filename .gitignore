@@ -9,6 +9,10 @@ __pycache__/
 
 # Environment files
 .env
+.env.local
+
+# Build artifacts
+*.egg-info/
 
 # Logs
 *.log
