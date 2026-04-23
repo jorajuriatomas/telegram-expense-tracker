@@ -1,38 +1,15 @@
-export type TelegramUpdate = {
-  message?: {
-    message_id?: number;
-    date?: number;
-    text?: string;
-    from?: { id?: number | string };
-    chat?: { id?: number | string };
-    [key: string]: unknown;
-  };
-};
-
-type TextMessage = {
-  message_id: number;
-  date?: number;
-  text: string;
-  from: { id: number | string };
-  chat: { id: number | string };
-};
-
-type NormalizedMessage = {
-  telegram_user_id: string;
-  chat_id: string;
-  message_text: string;
-  message_id: string;
-  timestamp: string;
-};
-
-type BotServiceResponse = {
-  should_reply?: boolean;
-  reply_text?: string | null;
-};
+import type {
+  ProcessMessageRequest,
+  ProcessMessageResponse,
+} from "../contracts/botService.js";
+import type {
+  TelegramTextMessage,
+  TelegramUpdate,
+} from "../contracts/telegram.js";
 
 type ProcessTelegramUpdateOptions = {
   botServiceClient: {
-    processMessage: (payload: NormalizedMessage) => Promise<BotServiceResponse>;
+    processMessage: (payload: ProcessMessageRequest) => Promise<ProcessMessageResponse>;
   };
   telegramClient: {
     sendMessage: (payload: {
@@ -47,9 +24,7 @@ export type ProcessTelegramUpdateResult = "ignored" | "replied" | "processed_no_
 
 function isTextMessage(
   update: TelegramUpdate,
-): update is TelegramUpdate & {
-  message: TextMessage;
-} {
+): update is TelegramUpdate & { message: TelegramTextMessage } {
   return (
     typeof update?.message?.text === "string" &&
     update.message.text.trim() !== "" &&
@@ -66,7 +41,7 @@ function toIsoTimestamp(unixTimestamp: number | undefined): string {
   return new Date().toISOString();
 }
 
-function normalizeMessage(message: TextMessage): NormalizedMessage {
+function normalizeMessage(message: TelegramTextMessage): ProcessMessageRequest {
   return {
     telegram_user_id: String(message.from.id),
     chat_id: String(message.chat.id),

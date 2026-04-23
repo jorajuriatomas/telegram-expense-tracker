@@ -1,16 +1,15 @@
-export type ProcessMessagePayload = {
-  telegram_user_id: string;
-  chat_id: string;
-  message_text: string;
-  message_id: string;
-  timestamp: string;
-};
+import type {
+  ProcessMessageRequest,
+  ProcessMessageResponse,
+} from "../../contracts/botService.js";
 
-export type ProcessMessageResponse = {
-  should_reply?: boolean;
-  reply_text?: string | null;
-};
-
+/**
+ * HTTP client for the Bot Service `/process-message` endpoint.
+ *
+ * Request and response types are imported from `contracts/botService` —
+ * the same module the use case uses to build the payload. This guarantees
+ * the wire format never drifts between caller and transport.
+ */
 export class BotServiceClient {
   private fetch: typeof fetch;
   private processMessageUrl: string;
@@ -28,7 +27,7 @@ export class BotServiceClient {
     this.processMessageUrl = new URL(processMessagePath, baseUrl).toString();
   }
 
-  async processMessage(payload: ProcessMessagePayload): Promise<ProcessMessageResponse> {
+  async processMessage(payload: ProcessMessageRequest): Promise<ProcessMessageResponse> {
     const response = await this.fetch(this.processMessageUrl, {
       method: "POST",
       headers: {
