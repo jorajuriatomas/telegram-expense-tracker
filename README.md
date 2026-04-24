@@ -233,18 +233,6 @@ The repo has five complementary docs, each with a different audience:
 
 ---
 
-## AI assistance disclosure
 
-The PDF explicitly allows AI tools. This project was built with Claude as a pair-programming assistant for code, refactors, documentation, and operational debugging (Docker, Railway, Telegram setup). Architectural decisions and trade-offs were owned and validated by the author; AI was used for execution speed, not as a replacement for judgment.
 
-Concretely:
 
-- All code, docs, and configuration files were reviewed line-by-line before commit.
-- All design decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md) were debated against alternatives before being adopted.
-- All tests were run locally before pushing.
-
----
-
-## Author
-
-Built by **Nico Uicich** for the Darwin AI Engineering Seniority Test.
