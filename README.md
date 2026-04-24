@@ -60,17 +60,15 @@ Bot  → "[Transportation] expense added ✅"
 
 ## Live demo
 
-> _If you deployed the bot, fill in the values below and remove this note._
+A live instance is deployed on Railway and reachable through Telegram.
 
-A live instance is deployed and reachable through Telegram.
+- **Bot username:** [`@tomas_jorajuria_bot`](https://t.me/tomas_jorajuria_bot)
+- **Connector health:** https://reasonable-alignment-production.up.railway.app/health
+- **Bot service health:** https://exemplary-healing-production-5afb.up.railway.app/health
 
-- **Bot username:** `@<your-bot-username>`
-- **Connector health:** `https://<your-connector>.up.railway.app/health`
-- **Bot service health:** `https://<your-bot-service>.up.railway.app/health`
+To test live: search `@tomas_jorajuria_bot` on Telegram and send `Pizza 20 bucks`. The bot replies with `[Food] expense added ✅`.
 
-To test live: search the bot username on Telegram and send `Pizza 20 bucks`. The bot replies with `[Food] expense added ✅`.
-
-> Note: only telegram_ids in the `users` table receive replies (per spec). To add a tester, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+> Note: only telegram_ids registered in the `users` table receive replies (per spec). To request access, share your Telegram numeric id (you can get it from [@userinfobot](https://t.me/userinfobot)) and it can be added with a one-line SQL insert — see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ---
 
@@ -195,7 +193,6 @@ The repo has several complementary docs, each with a different audience:
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Need to navigate the codebase or make non-trivial changes |
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Need a recipe for a common change (add provider, add field, etc.) |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Deploying to a real environment (Railway, Heroku, etc.) |
-| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Want the "why" behind the major architectural choices |
 | [`bot-service/README.md`](bot-service/README.md) | Working on the Python side |
 | [`connector-service/README.md`](connector-service/README.md) | Working on the Node side |
 | Inline docstrings | Writing or modifying a specific module |
