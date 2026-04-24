@@ -434,7 +434,7 @@ What the system protects against and what it explicitly does not.
 
 **NOT protected against (out of scope for this challenge):**
 
-- **Service-to-service authentication between connector and bot.** They sit on the same trusted network (Docker bridge or Railway's private network). Adding mTLS or shared-secret HMAC between them is a production hardening step listed in [`ROADMAP.md`](ROADMAP.md).
+- **Service-to-service authentication between connector and bot.** They sit on the same trusted network (Docker bridge or Railway's private network). Adding mTLS or shared-secret HMAC between them is a production hardening step.
 - **Rate limiting per Telegram user.** A whitelisted user could spam expenses and exhaust the LLM quota. Mitigation belongs in a middleware layer (e.g. Redis-backed token bucket).
 - **DDoS at the webhook.** Behind the trusted network there's no rate limiting. Production-grade deploys would put a WAF / rate limiter (Cloudflare, Railway/Vercel built-in) in front of the connector.
 - **Secret rotation automation.** Secrets live in `.env` and Railway variables; rotation is manual. A real production deploy would integrate with a secret manager (AWS Secrets Manager, Doppler, Infisical).
@@ -462,6 +462,5 @@ For higher throughput beyond what one process can handle, set `--workers N` on u
 - For specific change recipes ("how do I add an LLM provider?"), see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - For deployment to specific platforms, see [`DEPLOYMENT.md`](DEPLOYMENT.md).
 - For the rationale behind major architectural choices, see [`DECISIONS.md`](DECISIONS.md).
-- For what's next on the roadmap, see [`ROADMAP.md`](ROADMAP.md).
 - For service-internal details, see [`bot-service/README.md`](../bot-service/README.md) and [`connector-service/README.md`](../connector-service/README.md).
 - For the high-level project pitch and quickstart, see the [root README](../README.md).
