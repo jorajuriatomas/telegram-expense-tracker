@@ -20,23 +20,27 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 logger = logging.getLogger(__name__)
 
 
-_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS users (
-    "id" SERIAL PRIMARY KEY,
-    "telegram_id" text UNIQUE NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS expenses (
-    "id" SERIAL PRIMARY KEY,
-    "user_id" integer NOT NULL REFERENCES users("id"),
-    "description" text NOT NULL,
-    "amount" money NOT NULL,
-    "category" text NOT NULL,
-    "added_at" timestamp NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_expenses_user_id ON expenses ("user_id");
-"""
+# asyncpg uses prepared statements and rejects more than one command per
+# `execute()` call, so the schema is split into individual statements.
+_SCHEMA_STATEMENTS: tuple[str, ...] = (
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        "id" SERIAL PRIMARY KEY,
+        "telegram_id" text UNIQUE NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS expenses (
+        "id" SERIAL PRIMARY KEY,
+        "user_id" integer NOT NULL REFERENCES users("id"),
+        "description" text NOT NULL,
+        "amount" money NOT NULL,
+        "category" text NOT NULL,
+        "added_at" timestamp NOT NULL
+    )
+    """,
+    'CREATE INDEX IF NOT EXISTS idx_expenses_user_id ON expenses ("user_id")',
+)
 
 
 def parse_telegram_ids(raw: str) -> tuple[list[str], list[str]]:
@@ -67,7 +71,8 @@ async def ensure_schema_exists(
     prevent the service from booting.
     """
     async with engine.begin() as conn:
-        await conn.execute(text(_SCHEMA_SQL))
+        for statement in _SCHEMA_STATEMENTS:
+            await conn.execute(text(statement))
     logger.info("Schema ensured (CREATE TABLE IF NOT EXISTS executed)")
 
     if not initial_telegram_ids:
