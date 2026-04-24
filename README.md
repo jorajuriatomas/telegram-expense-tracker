@@ -56,6 +56,25 @@ User → "Uber 35"
 Bot  → "[Transportation] expense added ✅"
 ```
 
+The bot also supports slash commands for querying past expenses:
+
+```
+User → "/help"
+Bot  → "Available commands: /help, /total, /summary, /last ..."
+
+User → "/total"
+Bot  → "$55.00 spent this month."
+
+User → "/summary"
+Bot  → "Summary this month:
+        Transportation: $35.00 (1)
+        Food: $20.00 (1)
+        Total: $55.00"
+
+User → "/last"
+Bot  → "Last expense: Uber — $35.00 [Transportation] at 2026-04-24 13:30 UTC."
+```
+
 ---
 
 ## Live demo

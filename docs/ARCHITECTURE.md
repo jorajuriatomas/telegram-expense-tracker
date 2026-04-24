@@ -152,16 +152,19 @@ bot-service/
 ├── app/
 │   ├── domain/
 │   │   ├── categories.py            # The 11 valid categories as a tuple constant
-│   │   └── expense.py               # ParsedExpense (LLM output) + ExpenseToSave (persistence input)
+│   │   └── expense.py               # ParsedExpense (LLM output), ExpenseToSave (write), ExpenseRecord (read)
 │   ├── application/
-│   │   └── process_message.py       # ProcessMessageUseCase + Protocols for repos and extractor
+│   │   ├── process_message.py       # Top-level use case: whitelist gate + routing
+│   │   └── command_handler.py       # Slash-command dispatch (/help, /total, /summary, /last)
 │   ├── infrastructure/
 │   │   ├── llm/
 │   │   │   └── langchain_expense_extractor.py    # LangChain-based ExpenseExtractor (provider-agnostic)
 │   │   └── postgres/
 │   │       ├── connection.py        # Cached engine + session factory
+│   │       ├── schema.py            # Idempotent schema bootstrap at startup
 │   │       ├── users_repository.py  # Whitelist lookup (find_id_by_telegram_id)
-│   │       └── expense_repository.py # INSERT with money cast and tz coercion
+│   │       ├── expense_repository.py        # Write side: INSERT with money cast and tz coercion
+│   │       └── expense_query_repository.py  # Read side: SUM, GROUP BY, ORDER BY (CQRS-lite)
 │   ├── interface/
 │   │   └── http/
 │   │       └── schemas.py           # Pydantic request/response models
@@ -177,6 +180,8 @@ bot-service/
 ```
 
 The dependency direction is `infrastructure → application → domain`. The use case knows nothing about Postgres, FastAPI, or LangChain — it depends only on Protocols defined alongside it.
+
+The persistence layer follows a CQRS-lite split: `expense_repository` (writes) and `expense_query_repository` (reads) are separate so each side can evolve its SQL without affecting the other. They share the same connection pool.
 
 ### 4.2 Connector service
 

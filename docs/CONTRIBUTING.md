@@ -91,6 +91,33 @@ To add one (e.g. `"Travel"`):
 
 ---
 
+## Recipe: Add a new slash command
+
+Suppose you want to add `/today` (sum of expenses for today only).
+
+1. **Register the command** in `bot-service/app/application/command_handler.py`:
+
+   - Add `"/today"` to the `_HANDLED_COMMANDS` tuple.
+   - Add an entry to `self._handlers` in `__init__`: `"/today": self._today`.
+   - Update `_HELP_TEXT` so `/help` lists the new command.
+
+2. **Implement the handler** as a method:
+
+   ```python
+   async def _today(self, user_id: int, _args: str) -> str:
+       since = datetime.combine(date.today(), time.min)
+       amount = await self._query_repository.total(user_id=user_id, since=since)
+       return f"{_format_amount(amount)} spent today."
+   ```
+
+3. **If the command needs a new query**, add a method to `ExpenseQueryRepository` (Protocol in `command_handler.py`, implementation in `infrastructure/postgres/expense_query_repository.py`). The existing methods cover most cases (`total`, `summary_by_category`, `last_n`); reuse them when possible.
+
+4. **Add tests** in `tests/test_command_handler.py` using the `InMemoryQueryRepository` pattern. At minimum: happy path, empty-data case, formatting verification.
+
+5. **No connector changes required.** The connector forwards every text to the bot; the routing happens entirely on the bot side.
+
+---
+
 ## Recipe: Change the reply format
 
 The reply is built in `bot-service/app/application/process_message.py`:
