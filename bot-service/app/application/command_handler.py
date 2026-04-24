@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Awaitable, Callable, Protocol
 
+from app.domain.categories import EXPENSE_CATEGORIES
 from app.domain.expense import ExpenseRecord
 
 
@@ -45,6 +46,10 @@ _HELP_TEXT = (
     "/last — most recent expense"
 )
 
+# Canonical category lookup, case-insensitive.
+# `_CATEGORY_BY_LOWER["food"] == "Food"`. Built once at module load.
+_CATEGORY_BY_LOWER: dict[str, str] = {cat.lower(): cat for cat in EXPENSE_CATEGORIES}
+
 
 def _first_of_current_month(now: datetime | None = None) -> datetime:
     """Returns the first instant of the current month in UTC, naive (matches DB column type)."""
@@ -58,13 +63,21 @@ def _format_amount(amount: Decimal) -> str:
     return f"${amount:,.2f}"
 
 
+def _resolve_category(raw: str) -> str | None:
+    """Match user input against the canonical category list, case-insensitive.
+
+    Returns the canonical capitalization (e.g. "Food") or None if there's
+    no match. Categories are stored in the DB with the exact capitalization
+    from EXPENSE_CATEGORIES, so user input must be normalized before query.
+    """
+    return _CATEGORY_BY_LOWER.get(raw.strip().lower())
+
+
 class CommandHandler:
     """Dispatches `/command` messages to handlers and returns reply text.
 
     The handler set is fixed at construction; callers ask `is_command()`
-    first and `handle()` only when true. Returning `None` means "I don't
-    recognize this command" — the caller decides whether to reply or
-    silently ignore.
+    first and `handle()` only when true.
     """
 
     def __init__(self, query_repository: ExpenseQueryRepository) -> None:
@@ -98,7 +111,18 @@ class CommandHandler:
 
     async def _total(self, user_id: int, args: str) -> str:
         since = _first_of_current_month()
-        category = args or None
+
+        if args:
+            category = _resolve_category(args)
+            if category is None:
+                valid = ", ".join(EXPENSE_CATEGORIES)
+                return (
+                    f"Unknown category '{args}'. "
+                    f"Valid categories: {valid}"
+                )
+        else:
+            category = None
+
         amount = await self._query_repository.total(
             user_id=user_id, since=since, category=category
         )

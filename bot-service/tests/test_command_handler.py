@@ -97,6 +97,32 @@ def test_total_with_category_argument_filters_by_that_category() -> None:
     assert repo.last_total_call["category"] == "Food"
 
 
+def test_total_normalizes_category_to_canonical_capitalization() -> None:
+    """User input is matched case-insensitively and normalized before query."""
+    repo = InMemoryQueryRepository(total=Decimal("320.00"))
+    handler = CommandHandler(repo)  # type: ignore[arg-type]
+
+    _run(handler.handle(user_id=42, text="/total food"))     # lowercase
+    assert repo.last_total_call["category"] == "Food"
+
+    _run(handler.handle(user_id=42, text="/total TRANSPORTATION"))  # uppercase
+    assert repo.last_total_call["category"] == "Transportation"
+
+
+def test_total_returns_helpful_message_for_unknown_category() -> None:
+    """Reject unrecognized categories with a list of valid ones, instead of returning $0."""
+    repo = InMemoryQueryRepository(total=Decimal("999.99"))
+    handler = CommandHandler(repo)  # type: ignore[arg-type]
+
+    reply = _run(handler.handle(user_id=42, text="/total comida"))
+
+    assert "Unknown category" in reply
+    assert "comida" in reply
+    assert "Food" in reply  # the canonical list should be in the help
+    # IMPORTANT: the repository should NOT have been queried with the bad input
+    assert repo.last_total_call is None
+
+
 def test_summary_groups_by_category_and_appends_total() -> None:
     repo = InMemoryQueryRepository(
         summary=[
