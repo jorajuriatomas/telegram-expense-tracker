@@ -14,9 +14,24 @@ class ParsedExpense:
 
 @dataclass(frozen=True)
 class ExpenseToSave:
-    """Row to be persisted into the `expenses` table (matches PDF DDL)."""
+    """Write-side model — row to be persisted into `expenses` (matches PDF DDL)."""
 
     user_id: int
+    description: str
+    amount: Decimal
+    category: str
+    added_at: datetime
+
+
+@dataclass(frozen=True)
+class ExpenseRecord:
+    """Read-side model — row read back from `expenses` for queries.
+
+    Separate from ExpenseToSave because read concerns differ from write
+    concerns (CQRS-lite). Currently identical fields minus `user_id`
+    (queries are already scoped per-user), but free to evolve independently.
+    """
+
     description: str
     amount: Decimal
     category: str

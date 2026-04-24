@@ -11,11 +11,15 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
+from app.application.command_handler import CommandHandler
 from app.application.process_message import ProcessMessageUseCase
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.infrastructure.llm.langchain_expense_extractor import LangChainExpenseExtractor
 from app.infrastructure.postgres.connection import get_engine, get_session_factory
+from app.infrastructure.postgres.expense_query_repository import (
+    PostgresExpenseQueryRepository,
+)
 from app.infrastructure.postgres.expense_repository import PostgresExpenseRepository
 from app.infrastructure.postgres.schema import ensure_schema_exists
 from app.infrastructure.postgres.users_repository import PostgresUsersRepository
@@ -59,15 +63,20 @@ def create_app(process_message_use_case: ProcessMessageUseCase | None = None) ->
         session_factory = get_session_factory()
         users_repository = PostgresUsersRepository(session_factory=session_factory)
         expense_repository = PostgresExpenseRepository(session_factory=session_factory)
+        expense_query_repository = PostgresExpenseQueryRepository(
+            session_factory=session_factory,
+        )
         expense_extractor = LangChainExpenseExtractor(
             llm_provider=settings.llm_provider,
             llm_model_name=settings.llm_model_name,
             llm_api_key=settings.llm_api_key,
         )
+        command_handler = CommandHandler(query_repository=expense_query_repository)
         process_message_use_case = ProcessMessageUseCase(
             expense_extractor=expense_extractor,
             users_repository=users_repository,
             expense_repository=expense_repository,
+            command_handler=command_handler,
         )
 
     @app.get("/health")
