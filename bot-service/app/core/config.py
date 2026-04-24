@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     llm_model_name: str = Field(alias="LLM_MODEL_NAME")
     llm_api_key: str = Field(alias="LLM_API_KEY")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    # Optional comma-separated list of telegram_ids seeded into the whitelist
+    # at startup. Empty by default; any non-numeric tokens are skipped with a
+    # warning. Mirrors the env var consumed by infra/postgres/init/002_seed.sh.
+    initial_telegram_ids: str = Field(default="", alias="INITIAL_TELEGRAM_IDS")
 
     model_config = SettingsConfigDict(
         env_file=".env",
