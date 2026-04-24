@@ -420,8 +420,48 @@ For how to write new tests, see `docs/CONTRIBUTING.md`.
 
 ---
 
-## 13. Where to look next
+## 13. Security model
+
+What the system protects against and what it explicitly does not.
+
+**Protected against:**
+
+- **Unauthorized webhook callers.** The connector verifies the `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET`. Requests without a matching secret are rejected with 401. This is Telegram's official mechanism for proving "I'm Telegram, not an attacker pretending to be Telegram".
+- **Unauthorized expense entry.** Even if an attacker bypasses the secret check, they still need to be in the `users` whitelist to have any effect. Non-whitelisted senders are silently dropped at the use case layer.
+- **SQL injection via expense data.** All queries use parameterized binds via SQLAlchemy/asyncpg; user-controlled strings never go into raw SQL.
+- **SQL injection via env-driven seed.** The `INITIAL_TELEGRAM_IDS` parser validates that each token is numeric (`^[0-9]+$`) before binding. Malformed values are skipped with a warning.
+- **Credential leakage in `/health`.** The health endpoint exposes only `status` and `service`. Model name, DB URL, and API keys are intentionally NOT included in the response.
+
+**NOT protected against (out of scope for this challenge):**
+
+- **Service-to-service authentication between connector and bot.** They sit on the same trusted network (Docker bridge or Railway's private network). Adding mTLS or shared-secret HMAC between them is a production hardening step listed in [`ROADMAP.md`](ROADMAP.md).
+- **Rate limiting per Telegram user.** A whitelisted user could spam expenses and exhaust the LLM quota. Mitigation belongs in a middleware layer (e.g. Redis-backed token bucket).
+- **DDoS at the webhook.** Behind the trusted network there's no rate limiting. Production-grade deploys would put a WAF / rate limiter (Cloudflare, Railway/Vercel built-in) in front of the connector.
+- **Secret rotation automation.** Secrets live in `.env` and Railway variables; rotation is manual. A real production deploy would integrate with a secret manager (AWS Secrets Manager, Doppler, Infisical).
+- **Audit logging.** All inserts go to `expenses` but there's no separate audit trail of who did what when (for forensics/compliance).
+
+## 14. Performance considerations
+
+The system is designed for the typical chat-bot load profile (low to moderate request rate, latency dominated by the LLM call). Key choices:
+
+- **End-to-end async.** No request-thread blocking on I/O (DB or LLM). Single-process uvicorn handles concurrent requests via asyncio.
+- **Connection pooling.** asyncpg's pool (managed by SQLAlchemy `async_sessionmaker`) avoids per-request connection setup overhead.
+- **Webhook ACK before processing.** Removes the LLM latency from Telegram's perspective entirely — the perceived latency for the user is just `Telegram → bot reply` round-trip.
+- **No N+1 patterns.** Each `/process-message` call performs at most three DB operations: one SELECT (whitelist), one INSERT (expense), and an implicit COMMIT.
+
+Anti-patterns explicitly avoided:
+
+- No synchronous I/O in async handlers.
+- No global state (each request is self-contained).
+- No request-time schema introspection (schema is created once at startup).
+
+For higher throughput beyond what one process can handle, set `--workers N` on uvicorn to fan out across processes. Postgres pool sizing should scale accordingly.
+
+## 15. Where to look next
 
 - For specific change recipes ("how do I add an LLM provider?"), see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- For deployment to specific platforms, see [`DEPLOYMENT.md`](DEPLOYMENT.md).
+- For the rationale behind major architectural choices, see [`DECISIONS.md`](DECISIONS.md).
+- For what's next on the roadmap, see [`ROADMAP.md`](ROADMAP.md).
 - For service-internal details, see [`bot-service/README.md`](../bot-service/README.md) and [`connector-service/README.md`](../connector-service/README.md).
 - For the high-level project pitch and quickstart, see the [root README](../README.md).
