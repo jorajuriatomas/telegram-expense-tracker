@@ -72,7 +72,8 @@ def test_save_expense_returns_true_when_row_is_inserted() -> None:
         assert params["description"] == "Pizza"
         assert params["amount"] == Decimal("20.00")
         assert params["category"] == "Food"
-        assert params["added_at"] == datetime(2026, 4, 22, 20, 0, tzinfo=timezone.utc)
+        # Repository normalizes tz-aware to naive UTC (DB column is `timestamp` without TZ).
+        assert params["added_at"] == datetime(2026, 4, 22, 20, 0)
 
     asyncio.run(run())
 

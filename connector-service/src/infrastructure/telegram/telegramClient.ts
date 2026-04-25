@@ -83,9 +83,12 @@ export class TelegramClient {
   /**
    * Download the bytes of a previously-resolved file.
    *
-   * Returns the raw bytes plus the inferred MIME type from the
-   * `Content-Type` response header, falling back to `image/jpeg`
-   * which is what Telegram serves for nearly all photo uploads.
+   * Telegram's file CDN typically serves photos with a generic
+   * `Content-Type: application/octet-stream` rather than the actual
+   * image type. Since Telegram only stores photo uploads as JPEG, we
+   * fall back to `image/jpeg` for any non-image response header. This
+   * keeps downstream multimodal LLM clients (which validate the
+   * `data:image/...` prefix) happy without sniffing magic bytes.
    */
   async downloadFile(filePath: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
     const url = new URL(filePath, this.fileDownloadBaseUrl).toString();
@@ -94,7 +97,8 @@ export class TelegramClient {
       throw new Error(`Telegram file download returned status ${response.status}`);
     }
     const arrayBuffer = await response.arrayBuffer();
-    const mimeType = response.headers.get("content-type") ?? "image/jpeg";
+    const rawMime = response.headers.get("content-type") ?? "";
+    const mimeType = rawMime.startsWith("image/") ? rawMime : "image/jpeg";
     return { bytes: new Uint8Array(arrayBuffer), mimeType };
   }
 }

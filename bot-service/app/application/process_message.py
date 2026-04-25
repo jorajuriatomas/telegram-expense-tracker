@@ -47,9 +47,9 @@ class ProcessMessageUseCase:
     """Top-level use case for incoming Telegram messages.
 
     Three execution paths share the same whitelist gate and persistence path:
-      1. Text + slash command → CommandHandler → reply.
-      2. Text + free message → text extractor → if expense, persist + reply.
-      3. Image (receipt photo) → image extractor → if expense, persist + reply.
+      1. Text + slash command -> CommandHandler -> reply.
+      2. Text + free message -> text extractor -> if expense, persist + reply.
+      3. Image (receipt photo) -> image extractor -> if expense, persist + reply.
 
     Non-whitelisted senders and "not an expense" results are silently ignored
     per the PDF spec.

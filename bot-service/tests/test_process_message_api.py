@@ -244,7 +244,7 @@ def test_process_message_routes_slash_command_to_command_handler() -> None:
     repository = InMemoryExpenseRepository(save_result=True)
     client = create_test_client(
         ids_by_telegram_id={"123": 42},
-        results_by_message=None,  # not used — command shouldn't hit the extractor
+        results_by_message=None,  # not used - command shouldn't hit the extractor
         expense_repository=repository,
     )
 

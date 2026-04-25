@@ -135,3 +135,31 @@ def test_message_payload_includes_image_data_url() -> None:
         assert message.content[1]["image_url"].startswith("data:image/png;base64,")
 
     asyncio.run(run())
+
+
+def test_normalizes_non_image_mime_type_to_jpeg() -> None:
+    """Telegram's file CDN serves photos as `application/octet-stream`.
+
+    Gemini's loader requires the data URL to start with `data:image/...`,
+    so the extractor must normalize any non-image mime type to `image/jpeg`
+    (which is what Telegram actually stores for photo uploads).
+    """
+
+    async def run():
+        chain = FakeChain(
+            SimpleNamespace(is_expense=False, description=None, amount=None, category=None)
+        )
+        extractor = GeminiImageExpenseExtractor(
+            llm_model_name="gemini-2.5-flash",
+            llm_api_key="test-key",
+            chain=chain,
+        )
+        await extractor.extract(
+            image_bytes=b"\xff\xd8\xff\xe0",  # JPEG magic bytes
+            mime_type="application/octet-stream",
+        )
+
+        message = chain.last_messages[0]
+        assert message.content[1]["image_url"].startswith("data:image/jpeg;base64,")
+
+    asyncio.run(run())

@@ -39,11 +39,11 @@ class ExpenseQueryRepository(Protocol):
 _HANDLED_COMMANDS = ("/help", "/total", "/summary", "/last")
 _HELP_TEXT = (
     "Available commands:\n"
-    "/help — show this list\n"
-    "/total — sum of expenses this month\n"
-    "/total <category> — sum for a specific category this month\n"
-    "/summary — breakdown by category this month\n"
-    "/last — most recent expense"
+    "/help - show this list\n"
+    "/total - sum of expenses this month\n"
+    "/total <category> - sum for a specific category this month\n"
+    "/summary - breakdown by category this month\n"
+    "/last - most recent expense"
 )
 
 # Canonical category lookup, case-insensitive.
@@ -59,7 +59,7 @@ def _first_of_current_month(now: datetime | None = None) -> datetime:
 
 
 def _format_amount(amount: Decimal) -> str:
-    """`$1234.50` style. No locale — keeps output predictable."""
+    """`$1234.50` style. No locale - keeps output predictable."""
     return f"${amount:,.2f}"
 
 
@@ -152,6 +152,6 @@ class CommandHandler:
             return "No expenses recorded yet."
         record = records[0]
         return (
-            f"Last expense: {record.description} — {_format_amount(record.amount)} "
+            f"Last expense: {record.description} - {_format_amount(record.amount)} "
             f"[{record.category}] at {record.added_at:%Y-%m-%d %H:%M} UTC."
         )

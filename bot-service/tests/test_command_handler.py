@@ -80,7 +80,7 @@ def test_total_returns_formatted_amount_for_current_month() -> None:
     assert repo.last_total_call is not None
     assert repo.last_total_call["user_id"] == 42
     assert repo.last_total_call["category"] is None
-    # `since` is the first of the current month — sanity-check it's within the month
+    # `since` is the first of the current month - sanity-check it's within the month
     since = repo.last_total_call["since"]
     assert since.day == 1
     assert since.hour == 0

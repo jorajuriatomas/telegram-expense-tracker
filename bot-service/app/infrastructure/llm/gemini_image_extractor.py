@@ -123,6 +123,14 @@ class GeminiImageExpenseExtractor:
         Returns a ParsedExpense if the image is a recognizable expense,
         or None otherwise (consistent with the text extractor's contract).
         """
+        # LangChain's Google GenAI image loader strictly requires the data URL
+        # to start with `data:image/...`. Telegram's file CDN, however, serves
+        # photo bytes with `Content-Type: application/octet-stream`. Normalize
+        # any non-image mime type to `image/jpeg`, which is what Telegram
+        # actually stores for photo uploads.
+        if not mime_type.startswith("image/"):
+            mime_type = "image/jpeg"
+
         encoded = base64.b64encode(image_bytes).decode("ascii")
         data_url = f"data:{mime_type};base64,{encoded}"
 
