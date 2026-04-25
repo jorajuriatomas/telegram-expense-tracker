@@ -110,7 +110,10 @@ Suppose you want to add `/today` (sum of expenses for today only).
        return f"{_format_amount(amount)} spent today."
    ```
 
-3. **If the command needs a new query**, add a method to `ExpenseQueryRepository` (Protocol in `command_handler.py`, implementation in `infrastructure/postgres/expense_query_repository.py`). The existing methods cover most cases (`total`, `summary_by_category`, `last_n`); reuse them when possible.
+3. **If the command needs new data**, pick the matching Protocol in `command_handler.py`:
+
+   - **Reads** (totals, summaries, lookups): add a method to `ExpenseQueryRepository` and implement it in `infrastructure/postgres/expense_query_repository.py`. The existing methods cover most cases (`total`, `summary_by_category`, `last_n`); reuse them when possible.
+   - **Writes** (delete, update): add a method to `ExpenseMutationRepository` and implement it in `infrastructure/postgres/expense_repository.py`. Keeping the read and write Protocols separate (Interface Segregation) means the handler depends only on what it actually uses.
 
 4. **Add tests** in `tests/test_command_handler.py` using the `InMemoryQueryRepository` pattern. At minimum: happy path, empty-data case, formatting verification.
 
@@ -252,22 +255,4 @@ If you want to drop the `money` column type (which is generally considered a Pos
 
 ---
 
-## Testing guidelines
-
-- **Tests must be hermetic**: no real LLM, no real Telegram, no real Postgres. If you need to test against a real DB, use `testcontainers` or similar — but isolate it in a separate suite (`integration-tests/`) so the unit tests stay fast.
-
-- **Bot service**: use the in-memory fakes pattern from `tests/test_process_message_api.py`. For the LangChain extractor, pass a `chain=FakeChain(...)` to skip LLM init.
-
-- **Connector service**: use plain object stubs as in `tests/processTelegramUpdate.test.ts`. The use case accepts any object that matches the shape of `botServiceClient` and `telegramClient`.
-
-- **Aim for the use case layer.** That's where the bulk of behavioral coverage lives per line of code. Repositories and HTTP handlers can be thinner on tests if the use case is well-covered.
-
-- **A new feature ships with tests.** No exceptions. Even a one-line change that affects behavior should be backed by a test.
-
----
-
-## Code style
-
-- Python: type hints on everything; docstrings on classes and public functions; no comments that just rephrase the code.
-- TypeScript: strict mode is on; type imports use `import type`; no `any` unless there's a comment justifying it.
-- Both: small modules. If a file is over ~150 lines, consider whether it has more than one responsibility.
+## Testing guide

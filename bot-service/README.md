@@ -96,6 +96,7 @@ Free-text messages are routed to the LLM. Messages starting with `/` are routed 
 | `/total <category>` | Sum filtered by category (e.g. `/total Food`) |
 | `/summary` | Per-category breakdown for the current month, plus total |
 | `/last` | Description, amount, category and timestamp of the most recent expense |
+| `/delete` | Removes the most recent expense and replies with what was deleted |
 
 Commands are case-insensitive (`/HELP` works). Unknown commands fall through to LLM extraction (which will likely treat them as non-expense and silently ignore).
 
@@ -149,10 +150,10 @@ Coverage:
 | `tests/test_expense_repository.py` | INSERT contract and row-inserted detection |
 | `tests/test_langchain_expense_extractor.py` | LLM output parsing, validation, fallback to `Other` |
 | `tests/test_schema.py` | `parse_telegram_ids` parsing logic |
-| `tests/test_command_handler.py` | Command dispatch, formatting, and edge cases (10 tests) |
+| `tests/test_command_handler.py` | Command dispatch, formatting, and edge cases (15 tests) |
 | `tests/test_process_message_api.py` | Full FastAPI request → response cycle including command routing |
 
-~30 tests total, ~1 second.
+~50 tests total, ~3 seconds.
 
 ## Concurrency model
 
@@ -176,7 +177,7 @@ No code changes elsewhere.
 1. Add the command string to `_HANDLED_COMMANDS` in `app/application/command_handler.py`.
 2. Add an entry to the `self._handlers` dict in `CommandHandler.__init__`.
 3. Implement the handler method (`async def _mycommand(self, user_id, args) -> str`).
-4. If the command needs new data, add a method to `ExpenseQueryRepository` (protocol in `command_handler.py`, impl in `infrastructure/postgres/expense_query_repository.py`).
+4. If the command needs new data, add a method to the appropriate Protocol in `command_handler.py`: `ExpenseQueryRepository` for reads, `ExpenseMutationRepository` for writes. Implement on the matching infrastructure class (`expense_query_repository.py` or `expense_repository.py`).
 5. Add tests in `tests/test_command_handler.py`.
 6. Update `_HELP_TEXT` so `/help` lists the new command.
 

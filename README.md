@@ -60,7 +60,7 @@ The bot also supports slash commands for querying past expenses:
 
 ```
 User → "/help"
-Bot  → "Available commands: /help, /total, /summary, /last ..."
+Bot  → "Available commands: /help, /total, /summary, /last, /delete ..."
 
 User → "/total"
 Bot  → "$55.00 spent this month."
@@ -73,6 +73,9 @@ Bot  → "Summary this month:
 
 User → "/last"
 Bot  → "Last expense: Uber — $35.00 [Transportation] at 2026-04-24 13:30 UTC."
+
+User → "/delete"
+Bot  → "Deleted: Uber - $35.00 [Transportation]"
 ```
 
 ---

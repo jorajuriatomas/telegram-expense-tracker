@@ -155,7 +155,7 @@ bot-service/
 │   │   └── expense.py               # ParsedExpense (LLM output), ExpenseToSave (write), ExpenseRecord (read)
 │   ├── application/
 │   │   ├── process_message.py       # Top-level use case: whitelist gate + routing
-│   │   └── command_handler.py       # Slash-command dispatch (/help, /total, /summary, /last)
+│   │   └── command_handler.py       # Slash-command dispatch (/help, /total, /summary, /last, /delete)
 │   ├── infrastructure/
 │   │   ├── llm/
 │   │   │   └── langchain_expense_extractor.py    # LangChain-based ExpenseExtractor (provider-agnostic)
@@ -462,10 +462,4 @@ Anti-patterns explicitly avoided:
 
 For higher throughput beyond what one process can handle, set `--workers N` on uvicorn to fan out across processes. Postgres pool sizing should scale accordingly.
 
-## 15. Where to look next
-
-- For specific change recipes ("how do I add an LLM provider?"), see [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- For deployment to specific platforms, see [`DEPLOYMENT.md`](DEPLOYMENT.md).
-- For the rationale behind major architectural choices, see [`DECISIONS.md`](DECISIONS.md).
-- For service-internal details, see [`bot-service/README.md`](../bot-service/README.md) and [`connector-service/README.md`](../connector-service/README.md).
-- For the high-level project pitch and quickstart, see the [root README](../README.md).
+## 15. 
