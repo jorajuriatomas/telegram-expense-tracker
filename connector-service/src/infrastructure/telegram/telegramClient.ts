@@ -1,6 +1,23 @@
+import type { TelegramFileInfo } from "../../contracts/telegram.js";
+
+/**
+ * HTTP client for the Telegram Bot API.
+ *
+ * Telegram exposes two distinct base URLs:
+ *  - The API base (e.g. `https://api.telegram.org`) for method calls,
+ *    accessed as `/bot<TOKEN>/<method>`.
+ *  - A file CDN at the same host but with a `/file/bot<TOKEN>/<path>`
+ *    prefix, used to download the actual bytes after `getFile` returns
+ *    a `file_path`.
+ *
+ * This client keeps both URLs derived from a single `apiBaseUrl` env var,
+ * so a single setting controls the whole Telegram surface.
+ */
 export class TelegramClient {
   private fetch: typeof fetch;
   private sendMessageUrl: string;
+  private getFileUrl: string;
+  private fileDownloadBaseUrl: string;
 
   constructor({
     apiBaseUrl,
@@ -13,6 +30,8 @@ export class TelegramClient {
   }) {
     this.fetch = fetchImpl;
     this.sendMessageUrl = new URL(`/bot${botToken}/sendMessage`, apiBaseUrl).toString();
+    this.getFileUrl = new URL(`/bot${botToken}/getFile`, apiBaseUrl).toString();
+    this.fileDownloadBaseUrl = new URL(`/file/bot${botToken}/`, apiBaseUrl).toString();
   }
 
   async sendMessage({
@@ -41,5 +60,41 @@ export class TelegramClient {
     }
 
     return response.json();
+  }
+
+  /**
+   * Look up a file's storage path. Telegram returns a `file_path` (e.g.
+   * `photos/file_42.jpg`) that we then append to the file CDN base URL
+   * to actually download the bytes.
+   */
+  async getFile(fileId: string): Promise<TelegramFileInfo> {
+    const url = `${this.getFileUrl}?file_id=${encodeURIComponent(fileId)}`;
+    const response = await this.fetch(url);
+    if (!response.ok) {
+      throw new Error(`Telegram getFile returned status ${response.status}`);
+    }
+    const body = (await response.json()) as { ok: boolean; result?: TelegramFileInfo };
+    if (!body.ok || !body.result) {
+      throw new Error(`Telegram getFile returned non-ok body for file_id=${fileId}`);
+    }
+    return body.result;
+  }
+
+  /**
+   * Download the bytes of a previously-resolved file.
+   *
+   * Returns the raw bytes plus the inferred MIME type from the
+   * `Content-Type` response header, falling back to `image/jpeg`
+   * which is what Telegram serves for nearly all photo uploads.
+   */
+  async downloadFile(filePath: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+    const url = new URL(filePath, this.fileDownloadBaseUrl).toString();
+    const response = await this.fetch(url);
+    if (!response.ok) {
+      throw new Error(`Telegram file download returned status ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const mimeType = response.headers.get("content-type") ?? "image/jpeg";
+    return { bytes: new Uint8Array(arrayBuffer), mimeType };
   }
 }

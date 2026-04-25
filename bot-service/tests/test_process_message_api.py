@@ -1,3 +1,4 @@
+import base64
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
@@ -8,6 +9,7 @@ from app.application.command_handler import CommandHandler
 from app.application.process_message import (
     ExpenseExtractor,
     ExpenseRepository,
+    ImageExpenseExtractor,
     ProcessMessageUseCase,
     UsersRepository,
 )
@@ -68,17 +70,31 @@ class InMemoryQueryRepository:
         ]
 
 
+class InMemoryImageExtractor(ImageExpenseExtractor):
+    """Returns a pre-configured ParsedExpense regardless of input bytes."""
+
+    def __init__(self, result: ParsedExpense | None) -> None:
+        self._result = result
+        self.last_call: dict | None = None
+
+    async def extract(self, image_bytes: bytes, mime_type: str = "image/jpeg"):
+        self.last_call = {"bytes_len": len(image_bytes), "mime_type": mime_type}
+        return self._result
+
+
 def create_test_client(
     ids_by_telegram_id: Mapping[str, int],
     results_by_message: Mapping[str, ParsedExpense | None] | None,
     expense_repository: ExpenseRepository,
     expense_extractor: ExpenseExtractor | None = None,
+    image_extractor: ImageExpenseExtractor | None = None,
 ) -> TestClient:
     use_case = ProcessMessageUseCase(
         expense_extractor=expense_extractor or InMemoryExpenseExtractor(results_by_message or {}),
         users_repository=InMemoryUsersRepository(ids_by_telegram_id),
         expense_repository=expense_repository,
         command_handler=CommandHandler(query_repository=InMemoryQueryRepository()),  # type: ignore[arg-type]
+        image_expense_extractor=image_extractor,
     )
     app = create_app(process_message_use_case=use_case)
     return TestClient(app)
@@ -267,6 +283,156 @@ def test_process_message_silently_ignores_command_from_non_whitelisted_user() ->
             "message_text": "/help",
             "message_id": "456",
             "timestamp": "2026-04-22T20:00:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"should_reply": False, "reply_text": None}
+
+
+# ----------------------------------------------------------------------
+# Image endpoint
+# ----------------------------------------------------------------------
+
+_FAKE_B64 = base64.b64encode(b"fake-jpeg-bytes").decode("ascii")
+
+
+def test_process_image_returns_reply_for_valid_receipt() -> None:
+    repository = InMemoryExpenseRepository(save_result=True)
+    image_extractor = InMemoryImageExtractor(
+        result=ParsedExpense(
+            description="Pizza Hut",
+            amount=Decimal("42.50"),
+            category="Food",
+        )
+    )
+    client = create_test_client(
+        ids_by_telegram_id={"123": 42},
+        results_by_message=None,
+        expense_repository=repository,
+        image_extractor=image_extractor,
+    )
+
+    response = client.post(
+        "/process-image",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+            "image_data": _FAKE_B64,
+            "mime_type": "image/jpeg",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "should_reply": True,
+        "reply_text": "[Food] expense added \u2705",
+    }
+    assert len(repository.saved_expenses) == 1
+    saved = repository.saved_expenses[0]
+    assert saved.description == "Pizza Hut"
+    assert saved.amount == Decimal("42.50")
+    assert image_extractor.last_call["bytes_len"] == len(b"fake-jpeg-bytes")
+
+
+def test_process_image_silently_ignores_when_extractor_returns_none() -> None:
+    """A photo that's not a receipt should be silently ignored, like text."""
+    client = create_test_client(
+        ids_by_telegram_id={"123": 42},
+        results_by_message=None,
+        expense_repository=InMemoryExpenseRepository(save_result=True),
+        image_extractor=InMemoryImageExtractor(result=None),
+    )
+
+    response = client.post(
+        "/process-image",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+            "image_data": _FAKE_B64,
+            "mime_type": "image/jpeg",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"should_reply": False, "reply_text": None}
+
+
+def test_process_image_silently_ignores_non_whitelisted_user() -> None:
+    client = create_test_client(
+        ids_by_telegram_id={"999": 1},
+        results_by_message=None,
+        expense_repository=InMemoryExpenseRepository(save_result=True),
+        image_extractor=InMemoryImageExtractor(
+            result=ParsedExpense("Pizza", Decimal("20"), "Food"),
+        ),
+    )
+
+    response = client.post(
+        "/process-image",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+            "image_data": _FAKE_B64,
+            "mime_type": "image/jpeg",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"should_reply": False, "reply_text": None}
+
+
+def test_process_image_silently_ignores_invalid_base64() -> None:
+    """Malformed base64 shouldn't crash; treat as non-expense."""
+    client = create_test_client(
+        ids_by_telegram_id={"123": 42},
+        results_by_message=None,
+        expense_repository=InMemoryExpenseRepository(save_result=True),
+        image_extractor=InMemoryImageExtractor(
+            result=ParsedExpense("Pizza", Decimal("20"), "Food"),
+        ),
+    )
+
+    response = client.post(
+        "/process-image",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+            "image_data": "not-valid-base64-!!!",
+            "mime_type": "image/jpeg",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"should_reply": False, "reply_text": None}
+
+
+def test_process_image_silently_ignores_when_extractor_not_wired() -> None:
+    """When the image extractor is None (e.g. provider != google_genai), ignore."""
+    client = create_test_client(
+        ids_by_telegram_id={"123": 42},
+        results_by_message=None,
+        expense_repository=InMemoryExpenseRepository(save_result=True),
+        image_extractor=None,  # not wired
+    )
+
+    response = client.post(
+        "/process-image",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+            "image_data": _FAKE_B64,
+            "mime_type": "image/jpeg",
         },
     )
 

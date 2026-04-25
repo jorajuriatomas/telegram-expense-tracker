@@ -15,6 +15,7 @@ from app.application.command_handler import CommandHandler
 from app.application.process_message import ProcessMessageUseCase
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.infrastructure.llm.gemini_image_extractor import GeminiImageExpenseExtractor
 from app.infrastructure.llm.langchain_expense_extractor import LangChainExpenseExtractor
 from app.infrastructure.postgres.connection import get_engine, get_session_factory
 from app.infrastructure.postgres.expense_query_repository import (
@@ -23,7 +24,11 @@ from app.infrastructure.postgres.expense_query_repository import (
 from app.infrastructure.postgres.expense_repository import PostgresExpenseRepository
 from app.infrastructure.postgres.schema import ensure_schema_exists
 from app.infrastructure.postgres.users_repository import PostgresUsersRepository
-from app.interface.http.schemas import ProcessMessageRequest, ProcessMessageResponse
+from app.interface.http.schemas import (
+    ProcessImageRequest,
+    ProcessMessageRequest,
+    ProcessMessageResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +55,6 @@ def create_app(process_message_use_case: ProcessMessageUseCase | None = None) ->
                     initial_telegram_ids=settings.initial_telegram_ids,
                 )
             except Exception:
-                # Surface the failure clearly but let the app boot anyway —
-                # it'll fail fast on the first DB call with a useful traceback.
                 logger.exception("Failed to ensure schema at startup")
         yield
 
@@ -71,17 +74,28 @@ def create_app(process_message_use_case: ProcessMessageUseCase | None = None) ->
             llm_model_name=settings.llm_model_name,
             llm_api_key=settings.llm_api_key,
         )
+        # Image extractor is currently Gemini-only. We only wire it when the
+        # provider is google_genai; otherwise the /process-image endpoint
+        # silently ignores requests.
+        image_extractor = (
+            GeminiImageExpenseExtractor(
+                llm_model_name=settings.llm_model_name,
+                llm_api_key=settings.llm_api_key,
+            )
+            if settings.llm_provider == "google_genai"
+            else None
+        )
         command_handler = CommandHandler(query_repository=expense_query_repository)
         process_message_use_case = ProcessMessageUseCase(
             expense_extractor=expense_extractor,
             users_repository=users_repository,
             expense_repository=expense_repository,
             command_handler=command_handler,
+            image_expense_extractor=image_extractor,
         )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
-        # Liveness only. Internals (model name, db url) intentionally not exposed.
         return {"status": "ok", "service": "bot-service"}
 
     @app.post("/process-message", response_model=ProcessMessageResponse)
@@ -93,6 +107,19 @@ def create_app(process_message_use_case: ProcessMessageUseCase | None = None) ->
         except Exception as error:
             logger.exception(
                 "Unhandled error in process-message endpoint",
+                extra={"error": str(error)},
+            )
+            raise HTTPException(status_code=500, detail="internal_error") from error
+
+    @app.post("/process-image", response_model=ProcessMessageResponse)
+    async def process_image(
+        payload: ProcessImageRequest,
+    ) -> ProcessMessageResponse:
+        try:
+            return await process_message_use_case.execute_image(payload)
+        except Exception as error:
+            logger.exception(
+                "Unhandled error in process-image endpoint",
                 extra={"error": str(error)},
             )
             raise HTTPException(status_code=500, detail="internal_error") from error
