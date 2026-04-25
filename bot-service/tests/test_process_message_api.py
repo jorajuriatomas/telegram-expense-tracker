@@ -41,13 +41,27 @@ class FailingExpenseExtractor(ExpenseExtractor):
 
 
 class InMemoryExpenseRepository(ExpenseRepository):
-    def __init__(self, save_result: bool) -> None:
+    """Implements both write-side responsibilities used in tests:
+    `save_expense` (for the text/image flow) and `delete_last_for_user`
+    (for the /delete command)."""
+
+    def __init__(
+        self,
+        save_result: bool = True,
+        delete_result: ExpenseRecord | None = None,
+    ) -> None:
         self._save_result = save_result
+        self._delete_result = delete_result
         self.saved_expenses: list[ExpenseToSave] = []
+        self.delete_calls: list[int] = []
 
     async def save_expense(self, expense: ExpenseToSave) -> bool:
         self.saved_expenses.append(expense)
         return self._save_result
+
+    async def delete_last_for_user(self, user_id: int) -> ExpenseRecord | None:
+        self.delete_calls.append(user_id)
+        return self._delete_result
 
 
 class InMemoryQueryRepository:
@@ -85,7 +99,7 @@ class InMemoryImageExtractor(ImageExpenseExtractor):
 def create_test_client(
     ids_by_telegram_id: Mapping[str, int],
     results_by_message: Mapping[str, ParsedExpense | None] | None,
-    expense_repository: ExpenseRepository,
+    expense_repository: InMemoryExpenseRepository,
     expense_extractor: ExpenseExtractor | None = None,
     image_extractor: ImageExpenseExtractor | None = None,
 ) -> TestClient:
@@ -93,7 +107,10 @@ def create_test_client(
         expense_extractor=expense_extractor or InMemoryExpenseExtractor(results_by_message or {}),
         users_repository=InMemoryUsersRepository(ids_by_telegram_id),
         expense_repository=expense_repository,
-        command_handler=CommandHandler(query_repository=InMemoryQueryRepository()),  # type: ignore[arg-type]
+        command_handler=CommandHandler(
+            query_repository=InMemoryQueryRepository(),  # type: ignore[arg-type]
+            mutation_repository=expense_repository,  # same in-memory write repo
+        ),
         image_expense_extractor=image_extractor,
     )
     app = create_app(process_message_use_case=use_case)
@@ -244,7 +261,7 @@ def test_process_message_routes_slash_command_to_command_handler() -> None:
     repository = InMemoryExpenseRepository(save_result=True)
     client = create_test_client(
         ids_by_telegram_id={"123": 42},
-        results_by_message=None,  # not used - command shouldn't hit the extractor
+        results_by_message=None,
         expense_repository=repository,
     )
 
@@ -263,7 +280,6 @@ def test_process_message_routes_slash_command_to_command_handler() -> None:
     body = response.json()
     assert body["should_reply"] is True
     assert "$100.00" in body["reply_text"]
-    # Command must NOT have triggered an expense save.
     assert repository.saved_expenses == []
 
 
@@ -288,6 +304,70 @@ def test_process_message_silently_ignores_command_from_non_whitelisted_user() ->
 
     assert response.status_code == 200
     assert response.json() == {"should_reply": False, "reply_text": None}
+
+
+def test_process_message_routes_delete_command_to_mutation_repository() -> None:
+    """`/delete` should call delete_last_for_user and reply with what was deleted."""
+    repository = InMemoryExpenseRepository(
+        save_result=True,
+        delete_result=ExpenseRecord(
+            description="Pizza",
+            amount=Decimal("20.00"),
+            category="Food",
+            added_at=datetime(2026, 4, 24, 13, 30),
+        ),
+    )
+    client = create_test_client(
+        ids_by_telegram_id={"123": 42},
+        results_by_message=None,
+        expense_repository=repository,
+    )
+
+    response = client.post(
+        "/process-message",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_text": "/delete",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["should_reply"] is True
+    assert "Deleted" in body["reply_text"]
+    assert "Pizza" in body["reply_text"]
+    assert "$20.00" in body["reply_text"]
+    assert "[Food]" in body["reply_text"]
+    assert repository.delete_calls == [42]
+
+
+def test_process_message_delete_replies_friendly_message_when_no_expenses() -> None:
+    repository = InMemoryExpenseRepository(save_result=True, delete_result=None)
+    client = create_test_client(
+        ids_by_telegram_id={"123": 42},
+        results_by_message=None,
+        expense_repository=repository,
+    )
+
+    response = client.post(
+        "/process-message",
+        json={
+            "telegram_user_id": "123",
+            "chat_id": "987",
+            "message_text": "/delete",
+            "message_id": "456",
+            "timestamp": "2026-04-22T20:00:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["should_reply"] is True
+    assert "No expenses" in body["reply_text"]
+    assert repository.delete_calls == [42]
 
 
 # ----------------------------------------------------------------------
@@ -421,7 +501,7 @@ def test_process_image_silently_ignores_when_extractor_not_wired() -> None:
         ids_by_telegram_id={"123": 42},
         results_by_message=None,
         expense_repository=InMemoryExpenseRepository(save_result=True),
-        image_extractor=None,  # not wired
+        image_extractor=None,
     )
 
     response = client.post(

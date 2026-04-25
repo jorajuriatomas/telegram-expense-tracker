@@ -1,8 +1,12 @@
 """Slash-command handling.
 
 Encapsulates the logic of routing and replying to commands like
-`/total`, `/summary`, `/last`, `/help`. Depends only on a query
-repository (read-only); never writes.
+`/total`, `/summary`, `/last`, `/delete`, `/help`. Depends on a query
+repository (read-only) and a mutation repository (for `/delete`).
+
+The two repositories are separate Protocols (Interface Segregation):
+the handler asks each dependency only for what it actually uses,
+keeping the surface area minimal and tests easy to stub.
 
 Adding a new command is a 3-line change here plus a new query method
 on the repository if needed. See `docs/CONTRIBUTING.md` for the recipe.
@@ -36,14 +40,26 @@ class ExpenseQueryRepository(Protocol):
         ...
 
 
-_HANDLED_COMMANDS = ("/help", "/total", "/summary", "/last")
+class ExpenseMutationRepository(Protocol):
+    """Subset of write-side operations the handler needs.
+
+    Distinct from the full ExpenseRepository (which also exposes
+    `save_expense`) because the handler never inserts; it only deletes.
+    """
+
+    async def delete_last_for_user(self, user_id: int) -> ExpenseRecord | None:
+        ...
+
+
+_HANDLED_COMMANDS = ("/help", "/total", "/summary", "/last", "/delete")
 _HELP_TEXT = (
     "Available commands:\n"
     "/help - show this list\n"
     "/total - sum of expenses this month\n"
     "/total <category> - sum for a specific category this month\n"
     "/summary - breakdown by category this month\n"
-    "/last - most recent expense"
+    "/last - most recent expense\n"
+    "/delete - remove the most recent expense"
 )
 
 # Canonical category lookup, case-insensitive.
@@ -80,13 +96,19 @@ class CommandHandler:
     first and `handle()` only when true.
     """
 
-    def __init__(self, query_repository: ExpenseQueryRepository) -> None:
+    def __init__(
+        self,
+        query_repository: ExpenseQueryRepository,
+        mutation_repository: ExpenseMutationRepository,
+    ) -> None:
         self._query_repository = query_repository
+        self._mutation_repository = mutation_repository
         self._handlers: dict[str, Callable[[int, str], Awaitable[str]]] = {
             "/help": self._help,
             "/total": self._total,
             "/summary": self._summary,
             "/last": self._last,
+            "/delete": self._delete,
         }
 
     @staticmethod
@@ -154,4 +176,13 @@ class CommandHandler:
         return (
             f"Last expense: {record.description} - {_format_amount(record.amount)} "
             f"[{record.category}] at {record.added_at:%Y-%m-%d %H:%M} UTC."
+        )
+
+    async def _delete(self, user_id: int, _args: str) -> str:
+        deleted = await self._mutation_repository.delete_last_for_user(user_id)
+        if deleted is None:
+            return "No expenses to delete."
+        return (
+            f"Deleted: {deleted.description} - "
+            f"{_format_amount(deleted.amount)} [{deleted.category}]"
         )

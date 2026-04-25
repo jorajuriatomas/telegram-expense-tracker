@@ -85,7 +85,10 @@ def create_app(process_message_use_case: ProcessMessageUseCase | None = None) ->
             if settings.llm_provider == "google_genai"
             else None
         )
-        command_handler = CommandHandler(query_repository=expense_query_repository)
+        command_handler = CommandHandler(
+            query_repository=expense_query_repository,
+            mutation_repository=expense_repository,
+        )
         process_message_use_case = ProcessMessageUseCase(
             expense_extractor=expense_extractor,
             users_repository=users_repository,
