@@ -190,12 +190,12 @@ Each service has its own README:
 Both suites are hermetic — in-memory fakes for repositories and the LLM chain, no external dependencies needed.
 
 ```bash
-# Bot service (~21 tests, ~1s)
+# Bot service (54 tests, ~3s)
 cd bot-service
 pip install -r requirements.txt pytest httpx
 pytest -q
 
-# Connector service (~7 tests, ~1s)
+# Connector service (10 tests, ~1s)
 cd connector-service
 npm install
 npm test

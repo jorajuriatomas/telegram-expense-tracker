@@ -56,8 +56,8 @@ Request:
 
 ```json
 {
-  "telegram_user_id": "1218557035",
-  "chat_id": "1218557035",
+  "telegram_user_id": "123456789",
+  "chat_id": "123456789",
   "message_text": "Pizza 20 bucks",
   "message_id": "42",
   "timestamp": "2026-04-23T16:30:00Z"
@@ -153,7 +153,7 @@ Coverage:
 | `tests/test_command_handler.py` | Command dispatch, formatting, and edge cases (15 tests) |
 | `tests/test_process_message_api.py` | Full FastAPI request → response cycle including command routing |
 
-~50 tests total, ~3 seconds.
+54 tests total, ~3 seconds.
 
 ## Concurrency model
 

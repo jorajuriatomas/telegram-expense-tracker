@@ -8,8 +8,8 @@ def test_parse_returns_empty_for_empty_input() -> None:
 
 
 def test_parse_single_id() -> None:
-    valid, invalid = parse_telegram_ids("1218557035")
-    assert valid == ["1218557035"]
+    valid, invalid = parse_telegram_ids("123456789")
+    assert valid == ["123456789"]
     assert invalid == []
 
 

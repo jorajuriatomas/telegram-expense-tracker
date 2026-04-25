@@ -2,8 +2,8 @@
 # Optional seed: insert one or more users into the whitelist on first DB init.
 #
 # INITIAL_TELEGRAM_IDS is a comma-separated list of Telegram numeric ids:
-#   INITIAL_TELEGRAM_IDS=1218557035
-#   INITIAL_TELEGRAM_IDS=1218557035,9876543210,5555555555
+#   INITIAL_TELEGRAM_IDS=123456789
+#   INITIAL_TELEGRAM_IDS=123456789,9876543210,5555555555
 #
 # Postgres' init mechanism runs files in /docker-entrypoint-initdb.d/ in
 # alphabetical order; .sh files (unlike .sql) inherit container env vars,
